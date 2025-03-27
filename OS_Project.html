@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Memory Management Tool</title>
+  <style>
+    /* General Styling */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      color: #007bff;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Form Styling */
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    /* Output Styling */
+    .output {
+      margin-top: 20px;
+      padding: 20px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+    }
+
+    .output h2 {
+      margin-top: 0;
+      color: #007bff;
+    }
+
+    .output p {
+      margin: 8px 0;
+    }
+
+    .highlight {
+      font-weight: bold;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Virtual Memory Management Tool</h1>
+    
+    <!-- Form Section -->
+    <form id="memoryForm">
+      <label for="memorySize">Memory Size (KB):</label>
+      <input type="number" id="memorySize" required>
+
+      <label for="pageSize">Page Size (KB):</label>
+      <input type="number" id="pageSize" required>
+
+      <label for="referenceString">Reference String (space-separated numbers):</label>
+      <input type="text" id="referenceString" required>
+
+      <button type="submit">Simulate</button>
+    </form>
+
+    <button type="button" id="resetButton">Reset</button>
+
+    <!-- Output Section -->
+    <div class="output" id="output"></div>
+  </div>
+
+  <script>
+    // Load stored values when the page loads
+    window.onload = function () {
+      if (localStorage.getItem('memorySize')) {
+        document.getElementById('memorySize').value = localStorage.getItem('memorySize');
+        document.getElementById('pageSize').value = localStorage.getItem('pageSize');
+        document.getElementById('referenceString').value = localStorage.getItem('referenceString');
+      }
+    };
+
+    // Function to simulate FIFO page replacement
+    function fifoPageReplacement(referenceString, frames) {
+      let queue = [];
+      let pageTable = new Set();
+      let pageFaults = 0;
+
+      for (let page of referenceString) {
+        if (!pageTable.has(page)) {
+          pageFaults++;
+          if (queue.length === frames) {
+            let removedPage = queue.shift();
+            pageTable.delete(removedPage);
+          }
+          queue.push(page);
+          pageTable.add(page);
+        }
+      }
+      return pageFaults;
+    }
+
+    // Function to simulate LRU page replacement
+    function lruPageReplacement(referenceString, frames) {
+      let pageTable = new Map();
+      let frameList = [];
+      let pageFaults = 0;
+
+      for (let page of referenceString) {
+        if (!pageTable.has(page)) {
+          pageFaults++;
+          if (frameList.length === frames) {
+            let removedPage = frameList.shift();
+            pageTable.delete(removedPage);
+          }
+          frameList.push(page);
+          pageTable.set(page, true);
+        } else {
+          frameList.splice(frameList.indexOf(page), 1);
+          frameList.push(page);
+        }
+      }
+      return pageFaults;
+    }
+
+    // Function to simulate Optimal page replacement
+    function optimalPageReplacement(referenceString, frames) {
+      let pageTable = new Map();
+      let pageFaults = 0;
+
+      for (let i = 0; i < referenceString.length; i++) {
+        let page = referenceString[i];
+        if (!pageTable.has(page)) {
+          pageFaults++;
+          if (pageTable.size === frames) {
+            let farthest = -1;
+            let pageToRemove = -1;
+            for (let p of pageTable.keys()) {
+              let idx = referenceString.slice(i).indexOf(p);
+              if (idx === -1) {
+                pageToRemove = p;
+                break;
+              } else if (idx > farthest) {
+                farthest = idx;
+                pageToRemove = p;
+              }
+            }
+            pageTable.delete(pageToRemove);
+          }
+          pageTable.set(page, true);
+        }
+      }
+      return pageFaults;
+    }
+
+    // Function to simulate fragmentation
+    function simulateFragmentation(memorySize, pageSize) {
+      let totalPages = Math.floor(memorySize / pageSize);
+      let internalFragmentation = pageSize - (memorySize % pageSize);
+      return { totalPages, internalFragmentation };
+    }
+
+    // Handle form submission
+    document.getElementById('memoryForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      let memorySize = parseInt(document.getElementById('memorySize').value);
+      let pageSize = parseInt(document.getElementById('pageSize').value);
+      let referenceStringInput = document.getElementById('referenceString').value.trim();
+
+      // Validate input
+      if (isNaN(memorySize) || memorySize <= 0 || isNaN(pageSize) || pageSize <= 0 || !referenceStringInput) {
+        alert("Please enter valid positive values.");
+        return;
+      }
+
+      let referenceString = referenceStringInput.split(' ').map(Number);
+      if (referenceString.some(isNaN)) {
+        alert("Reference string must contain valid numbers.");
+        return;
+      }
+
+      // Store values in localStorage
+      localStorage.setItem('memorySize', memorySize);
+      localStorage.setItem('pageSize', pageSize);
+      localStorage.setItem('referenceString', referenceStringInput);
+
+      let frames = Math.floor(memorySize / pageSize);
+      let fragmentation = simulateFragmentation(memorySize, pageSize);
+      let fifoFaults = fifoPageReplacement(referenceString, frames);
+      let lruFaults = lruPageReplacement(referenceString, frames);
+      let optimalFaults = optimalPageReplacement(referenceString, frames);
+
+      let output = `
+        <h2>Simulation Summary</h2>
+        <p><strong>Total Pages:</strong> ${fragmentation.totalPages}</p>
+        <p><strong>Internal Fragmentation:</strong> ${fragmentation.internalFragmentation} KB</p>
+        <p><strong>FIFO Faults:</strong> ${fifoFaults}</p>
+        <p><strong>LRU Faults:</strong> ${lruFaults}</p>
+        <p><strong>Optimal Faults:</strong> ${optimalFaults}</p>
+      `;
+
+      document.getElementById('output').innerHTML = output;
+    });
+
+    // Reset Button
+    document.getElementById('resetButton').addEventListener('click', function () {
+      document.getElementById('memoryForm').reset();
+      document.getElementById('output').innerHTML = "";
+      localStorage.clear();
+    });
+  </script>
+
+</body>
+</html>
